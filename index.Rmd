@@ -505,3 +505,174 @@ rm(casos_testeados_departamento, GBA)
 Acá podemos ver que las comunas de CABA se agrupan en la región superior del gráfico, lo cual indica que poseen altas tasas de notificación, mientras que los 24 partidos del Gran Buenos Aires se encuentran más o menos dispersos con tasas de notificación altas, medias y bajas.
 
 Estos resultados indican que la mayor tasa de notificación de CABA respecto de PBA es algo general y no producto de algunas regiones aisladas con valores extremos o un error en la carga de datos.
+
+Ahora bien, ¿por qué la tasa de notificación en CABA es mayor que la de PBA?
+
+Un factor que podría afectar la tasa de notificación, entre otros, es la edad de la población. Bajo esta hipótesis, podemos suponer que el sector más joven de la población tiene una tasa de notificación menor debido a, por ejemplo, la ausencia de síntomas. Asimismo, el sector de mayor edad podría tener una tasa de notificación baja por temor al contagio en centros de testeo o por dificultades para acceder a los mismos.
+
+Para intentar determinar si la composición etaria de la población afecta la tasa de notificación veamos la pirámide poblacional de ambas jurisdicciones.
+
+### Población por rango etario en CABA y PBA
+
+Para estudiar la composición etaria de CABA y PBA, vamos a construir sus respectivas pirámides poblacionales. Para ello, necesitamos los datos correspondientes a las [proyecciones provinciales de población por sexo y grupo de edad 2010-2040](https://www.indec.gob.ar/ftp/cuadros/publicaciones/proyecciones_prov_2010_2040.pdf) para el año 2021 calculadas por el INDEC a partir de datos del Censo Nacional de Población, Hogares y Viviendas 2010. En particular, la población agrupada en rangos quinquenales de edad de CABA y PBA.
+
+```{r piramide poblacional CABA y PBA, fig.cap='Pirámide poblacional por grupos quinquenales para la Ciudad Autónoma de Buenos Aires y la Provincia de Buenos Aires.'}
+pobl_CABA_PBA_edad <- read.csv2(file = "data/poblacion_CABA_PBA_total_por_edad.csv", sep = ',', dec = '.')
+
+pobl_CABA_PBA_edad <- pobl_CABA_PBA_edad %>%
+  mutate(grupo_etario = factor(grupo_etario, levels = c('00-04', '05-09', '10-14', '15-19', '20-24', '25-29', '30-34', '35-39', '40-44', '45-49', '50-54', '55-59', '60-64', '65-69', '70-74', '75-79', '80-84', '85-89', '90-94', '95-99', '100 y más')),
+         jurisdiccion = factor(jurisdiccion, levels = c('CABA', 'Buenos Aires'))) %>%
+  select(-anio)
+
+ggplot(pobl_CABA_PBA_edad, aes(x = ifelse(test = jurisdiccion == "CABA", yes = -poblacion, no = poblacion), y = grupo_etario, fill = jurisdiccion)) +
+  geom_col() +
+  scale_fill_manual(values = c("#999999", "#56B4E9"), name = 'Jurisdicción') +
+  scale_x_continuous(breaks = seq(-250000, 2000000, 250000), labels = abs(seq(-250000, 2000000, 250000))) +
+  labs(x = "Población",
+       y = "Grupo etario",
+       title = "Pirámide poblacional por rango de edad en CABA y PBA",
+       subtitle = "Proyecciones de población para el año 2021 (INDEC)") +
+  theme(panel.background = element_blank(),
+        panel.grid.major = element_line(colour = 'lightgrey', size = 0.2),
+        panel.grid.minor = element_line(colour = 'lightgrey', size = 0.1),
+        strip.background = element_blank(),
+        strip.text = element_text(size = 12),
+        axis.ticks.y = element_blank(),
+        axis.title = element_text(size = 14),
+        axis.text.x = element_text(vjust = 1),
+        axis.text = element_text(size = 10),
+        legend.key = element_rect(fill = "white"),
+        plot.title = element_text(size = 14),
+        plot.subtitle = element_text(size = 12),
+        legend.title = element_text(size = 12),
+        legend.text = element_text(size = 10))
+
+```
+
+En este gráfico, vemos que la población de CABA tiende a ser mayor en edad que la de la Provincia de Buenos Aires.
+
+### Tasa de notificación por grupo de edad
+
+Ahora, veamos la tasa de notificación durante todo el periodo analizado por jurisdicción y edad. ¿Es similar para todos los grupos etarios?
+
+> Recordemos que la base de datos tiene datos faltantes para la variable edad. Además, posee datos mal ingresados (como por ejemplo, personas con "2019" años). Vamos a filtrar esos datos.
+
+```{r tasa de notificacion por edad en CABA y PBA, fig.cap='Tasa de notificación de COVID-19 cada 100.000 habitantes por grupos quinquenales de edad para la Ciudad Autónoma de Buenos Aires y la Provincia de Buenos Aires durante parte del 2021.'}
+df_casos_edad <- df_covid_CABA_PBA_2021 %>%
+  mutate(grupo_etario = case_when(between(edad, 0, 4) ~ '00-04',
+                                  between(edad, 5, 9) ~ '05-09',
+                                  between(edad, 10, 14) ~ '10-14',
+                                  between(edad, 15, 19) ~ '15-19',
+                                  between(edad, 20, 24) ~ '20-24',
+                                  between(edad, 25, 29) ~ '25-29',
+                                  between(edad, 30, 34) ~ '30-34',
+                                  between(edad, 35, 39) ~ '35-39',
+                                  between(edad, 40, 44) ~ '40-44',
+                                  between(edad, 45, 49) ~ '45-49',
+                                  between(edad, 50, 54) ~ '50-54',
+                                  between(edad, 55, 59) ~ '55-59',
+                                  between(edad, 60, 64) ~ '60-64',
+                                  between(edad, 65, 69) ~ '65-69',
+                                  between(edad, 70, 74) ~ '70-74',
+                                  between(edad, 75, 79) ~ '75-79',
+                                  between(edad, 80, 84) ~ '80-84',
+                                  between(edad, 85, 89) ~ '85-89',
+                                  between(edad, 90, 94) ~ '90-94',
+                                  between(edad, 95, 99) ~ '95-99',
+                                  between(edad, 100, 115) ~ '100 y más',
+                                  TRUE ~ 'Sin Dato'),
+         grupo_etario = factor(grupo_etario, levels = c('00-04', '05-09', '10-14', '15-19', '20-24', '25-29', '30-34', '35-39', '40-44', '45-49', '50-54', '55-59', '60-64', '65-69', '70-74', '75-79', '80-84', '85-89', '90-94', '95-99', '100 y más', 'Sin Dato')))
+
+df_casos_edad_agrupados <- df_casos_edad %>%
+  group_by(jurisdiccion, grupo_etario) %>%
+  summarise(datos = n()) %>%
+  ungroup()
+
+df_casos_edad_agrupados <- left_join(df_casos_edad_agrupados,
+                                     pobl_CABA_PBA_edad,
+                                     by = c("jurisdiccion", "grupo_etario")) %>%
+  mutate(notificacion = round(datos / poblacion * 100000, 2),
+         jurisdiccion = factor(jurisdiccion, levels = c('CABA', 'Buenos Aires'))) %>%
+  select("jurisdiccion", "grupo_etario", "notificacion", "datos")
+
+ggplot(subset(df_casos_edad_agrupados, !grupo_etario == 'Sin Dato'), aes(x = notificacion, y = grupo_etario, fill = factor(jurisdiccion, levels = c('CABA', 'Buenos Aires')))) +
+  geom_col() +
+  scale_fill_manual(values = c("#999999", "#56B4E9"), name = 'Jurisdicción') +
+  scale_x_continuous(breaks = seq(0, 150000, by = 25000)) +
+  coord_cartesian(xlim = c(0, 150000)) +
+  labs(x = "Tasa de notificación\n(cada 100.000 habitantes)",
+       y = "Grupo etario",
+       title = "Tasa de notificación de COVID-19 en CABA y PBA por grupo etario",
+       subtitle = "Datos del Ministerio de Salud de la Nación") +
+  theme(panel.background = element_blank(),
+        panel.grid.major = element_line(colour = 'lightgrey', size = 0.2),
+        panel.grid.minor = element_line(colour = 'lightgrey', size = 0.1),
+        strip.background = element_blank(),
+        strip.text = element_text(size = 12),
+        axis.ticks.y = element_blank(),
+        axis.title = element_text(size = 14),
+        axis.text.x = element_text(vjust = 1),
+        axis.text = element_text(size = 10),
+        legend.key = element_rect(fill = "white"),
+        plot.title = element_text(size = 14),
+        plot.subtitle = element_text(size = 12),
+        legend.title = element_text(size = 12),
+        legend.text = element_text(size = 10))
+
+rm(df_casos_edad)
+
+```
+
+Como se visualiza en el gráfico, la tasa de notificación es mayor para edades intermedias, es decir, comprendidas entre los 20 y los 59 años aproximadamente.
+
+Dado que CABA posee un mayor porcentaje de población comprendido entre esas edades en comparación con la Provincia de Buenos Aires (cuya población es "más joven"), y que las personas de dicho rango etario serían más proclives a testearse que los más jóvenes, es razonable pensar que asimismo posea una mayor tasa de notificación.
+
+Parece que la franja etaria de la población afecta la tasa de notificación, pero ¿es suficiente para explicar las diferencias en este indicador entre CABA y PBA?
+
+### Tasa de notificación estandarizada
+
+Para saber si la diferente composición etaria de las dos jurisdicciones es suficiente para explicar la diferente tasa de notificación que estas poseen, vamos a utilizar tasas estandarizadas. Si este fuera el caso, al estandarizar la tasa de notificación utilizando una población de referencia deberíamos eliminar el efecto de la variable edad y obtener tasas similares para ambas jurisdicciones. Por el contrario, si hubiera factores no afectados por la distribución en edades que influyan sobre la tasa de notificación, la estandarización de este parámetro no equipararía los valores para CABA y PBA.
+
+> Vamos a usar la pirámide poblacional de la Argentina para estandarizar las poblaciones de CABA y PBA.
+
+```{r tasa de notificación de COVID-19 estandarizada para CABA y PBA, results = 'asis', fig.cap='Tasa de notificación estandarizada para CABA y PBA.'}
+pobl_Arg_edad <- read.csv2(file = "data/poblacion_Argentina_total_por_edad.csv", sep = ',', dec = '.')
+
+pobl_Arg_edad <- pobl_Arg_edad %>%
+  select(-anio) %>%
+  rename(poblacion_est = poblacion)
+
+df_casos_edad_agrupados <- left_join(df_casos_edad_agrupados,
+                                     pobl_Arg_edad,
+                                     by = 'grupo_etario')
+
+df_casos_edad_agrupados <- left_join(df_casos_edad_agrupados,
+                                     pobl_CABA_PBA_edad,
+                                     by = c('jurisdiccion', 'grupo_etario')) %>%
+  filter(!grupo_etario == 'Sin Dato')
+
+tasa_notificacion_estandariza <- df_casos_edad_agrupados %>%
+  group_by(jurisdiccion) %>%
+  phe_dsr(
+    x = datos,
+    n = poblacion,
+    stdpop = poblacion_est,
+    stdpoptype = "field")
+
+tasa_notificacion_estandariza <- tasa_notificacion_estandariza %>%
+  mutate(tasa_notificacion = total_count / total_pop * 100000)
+
+tasa_notificacion_estandariza <- as.data.frame(tasa_notificacion_estandariza[c('jurisdiccion', 'value', 'lowercl', 'uppercl')])
+
+knitr::kable(
+  tasa_notificacion_estandariza,
+  col.names = c('Jurisdicción', 'Tasa de notificación', 'IC95% límite inferior', 'IC95% límite superior'),
+  align = "cccc",
+  digits = 0
+)
+
+rm(df_casos_edad_agrupados, pobl_Arg_edad, pobl_CABA_PBA_edad, tasa_notificacion_estandariza, df_covid_CABA_PBA_2021)
+
+```
+
+Estandarizando la tasa de notificación para remover el efecto de la distribución diferencial por edades de CABA y PBA, encontramos que la Ciudad de Buenos Aires sigue teniendo una mayor tasa de notificación que la Provincia de Buenos Aires. Esto permite descartar que la mayor tasa de notificación en CABA se explique por la diferente estructura etaria de las dos jurisdicciones. Esto no significa que la edad no afecte la tasa de notificación, sino que habría al menos algún otro factor resposable de explicar estas diferencias.
