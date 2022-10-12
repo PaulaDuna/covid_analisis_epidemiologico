@@ -1,0 +1,507 @@
+---
+title: "Covid-19 en CABA y PBA durante el año 2021"
+subtitle: "Introducción a la Ciencia de Datos en Salud - Introducción al análisis epidemiológico"
+author: "Paula Dunayevich"
+date: "31 de agosto de 2022"
+output:
+ html_document:
+    fig_height: 6
+    fig_width: 8
+    toc: true
+    toc_depth: 4
+    toc_float:
+      toc_collapsed: true
+    number_sections: true
+    theme: paper
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = TRUE, message = FALSE, warning = FALSE, results = 'hide', fig.align = 'center')
+
+```
+
+```{css, echo = FALSE}
+.header-section-number::after {content: ".";}
+p {font-size: 16px;}
+li {font-size: 16px;}
+
+```
+
+# Covid-19 en CABA y PBA - Análisis epidemiológico
+
+## Introducción
+
+La [COVID-19](https://www.who.int/es/emergencies/diseases/novel-coronavirus-2019/question-and-answers-hub/q-a-detail/coronavirus-disease-covid-19) es la enfermedad causada por el nuevo coronavirus conocido como SARS-CoV-2. La Organización Mundial de la Salud (OMS) [tuvo noticia por primera vez](https://www.who.int/es/news/item/27-04-2020-who-timeline---covid-19) de la existencia de este nuevo virus el 31 de diciembre de 2019, al ser informada de un grupo de casos de «neumonía vírica» que se habían declarado en Wuhan (República Popular China). A partir de allí y frente a la evidencia de su propagación a nivel global, [la OMS declaró la pandemia](https://www.paho.org/es/noticias/11-3-2020-oms-caracteriza-covid-19-como-pandemia).
+
+El lunes 2 de marzo se confirmó el [primer caso de SARS-CoV-2 en la Argentina](https://www.argentina.gob.ar/noticias/salud-confirma-el-primer-caso-de-coronavirus-en-el-pais). Se trató de una persona de 43 años de sexo masculino, que había estado entre el 19 y el 21 de febrero en Milán y entre el 22 y el 29 del mismo mes en otras ciudades de Italia y España e ingresó al país el domingo primero de marzo, fecha en la que realizó la consulta médica al presentar fiebre, tos y dolor de garganta.
+
+A partir de ese momento se tomaron [diversas medidas](https://www.argentina.gob.ar/coronavirus/medidas-gobierno): la regulación de la presencialidad en el ámbito educativo y laboral, el uso de barbijo en lugares públicos, el testeo de casos sospechosos y contactos estrechos  y la restricción a la libre circulación en el marco del [aislamiento social preventivo y obligatorio](https://www.argentina.gob.ar/noticias/el-gobierno-nacional-decreto-el-aislamiento-social-preventivo-y-obligatorio) dispuesto por el Gobierno Nacional a partir del día 20 de marzo de 2020.
+
+En un principio, las medidas establecidas por el Gobierno Nacional fueron adoptadas por todas las jurisdicciones de la Argentina. Se estableció un sistema de fases para administrar el aislamiento según el cual se dividió a las distintas regiones en base al tiempo de duplicación de los casos de COVID-19 entre su población. A partir de este indicador, a cada jurisdicción le correspondían distintas restricciones.
+
+Sin embargo, con el paso del tiempo, algunas regiones fueron adhiriendo selectivamente a ciertas medidas y dejando de lado otras. Por esta razón resulta interesante analizar la evolución del COVID-19 en diferentes jurisdicciones, especialmente en aquellas que adoptaron medidas diferentes en cuanto a las restricciones impartidas a sus habitantes. De esta manera, se puede tratar de inferir si las medidas tomadas en una u otra región fueron más o menos exitosas para frenar el avance del virus.
+
+Por otro lado, en diciembre del 2020, el Ministerio de Salud de la Nación detalló en el denominado ['Plan Estratégico para la Vacunación contra la covid-19 en la República Argentina'](https://www.argentina.gob.ar/sites/default/files/coronavirus-vacuna-plan-estrategico-vacunacion-covid-19-diciembre-2020.pdf) los grupos prioritarios para ser vacunados. Los que encabezaron la lista fueron el personal de salud y los adultos mayores. El 24 de diciembre de 2020 llegó a la Argentina el [primer lote con 300.000 dosis de la vacuna Sputnik V](https://www.argentina.gob.ar/noticias/llegaron-al-pais-las-primeras-vacunas-sputnik-v#:~:text=Luego%20de%20la%20aprobaci%C3%B3n%20de,es%20el%20personal%20de%20salud). De esta manera comenzó la campaña de vacunación contra el COVID-19 en nuestro país. La eficacia de la vacunación como herramienta para controlar el avance del COVID-19 puede también analizarse a la luz de la evolución de los casos en distintas regiones del país.
+
+## Objetivo
+
+En este trabajo analizaremos la evolución del COVID-19 en la Ciudad Autónoma de Buenos Aires (CABA) y la Provincia de Buenos Aires (PBA) durante parte del año 2021 con el fin de comparar la situación epidemiológica en ambas jurisdicciones. En particular, nos interesa contrastar la dinámica temporal y la magnitud de la tasa de incidencia en ambas regiones.
+
+## Análisis
+
+### Bibliotecas
+
+Cargamos las bibliotecas necesarias para el análisis.
+
+```{r bibliotecas}
+library(tidyverse)
+library(lubridate)
+library(naniar)
+library(incidence2)
+library(doBy)
+library(zoo)
+library(sf)
+library(PHEindicatormethods)
+
+```
+
+### Datos
+
+Para este trabajo, vamos utilizar la [base de datos de casos registrados de COVID-19 en la República Argentina](https://www.datos.gob.ar/dataset/salud-covid-19-casos-registrados-republica-argentina) (Covid19Casos.csv) mantenida por la Dirección Nacional de Epidemiología y Análisis de Situación de Salud del Ministerio de Salud de la República Argentina descargada el día 28 de agosto de 2022.
+
+Esta base de datos contiene información sobre los casos de COVID-19 registrados en la República Argentina desde el 01/03/2020 hasta la actualidad.
+
+Algunas de las variables especificadas en la base de datos son: país, provincia y departamento de residencia, fecha de apertura del caso, fecha de inicio de los síntomas, clasificación del caso, sexo y edad.
+
+Para este análisis, vamos a emplear los registros correspondientes a la población que reside en la Ciudad Autónoma de Buenos Aires y en la Provincia de Buenos Aires (República Argentina), lo cual se encuentra indicado en la columna **residencia_pais_nombre** como 'Argentina' y en la **columna residencia_provincia_nombre** como 'CABA' y 'Buenos Aires' (df_covid_CABA_PBA.csv).
+
+Partiendo de esta base de datos filtrada, vamos a quedarnos con los datos pertenecientes al año 2021. Por otro lado, vamos a reemplazar la edad ingresada en meses por edad en años. Además, vamos a seleccionar de la base de datos sólo las variables de interés. Y por último, vamos a renombrar algunas variables.
+
+```{r carga y limpieza de datos, fig.width=6, fig.height=5, fig.cap='Porcentaje de valores faltantes por variable en la base de datos de casos registrados de COVID-19 en CABA y PBA durante el año 2021, para las variables de interés para este trabajo.'}
+options(scipen = 100000)
+
+df_covid_CABA_PBA <- read.csv(file = "data/df_covid_CABA_PBA.csv", sep = ',')
+
+df_covid_CABA_PBA_2021 <- df_covid_CABA_PBA %>%
+  mutate(fecha = as.Date(as.character(fecha_apertura), format = "%Y-%m-%d"),
+         anio = year(fecha),
+         edad = replace(edad, edad_años_meses == 'Meses', 0)) %>%
+  filter(anio == 2021) %>%
+  select("edad", "residencia_provincia_nombre", "residencia_departamento_nombre", "fecha", "clasificacion_resumen") %>%
+  rename(jurisdiccion = residencia_provincia_nombre,
+         departamento = residencia_departamento_nombre,
+         clasificacion = clasificacion_resumen)
+
+gg_miss_var(df_covid_CABA_PBA_2021,
+            show_pct = TRUE) +
+  labs(y = 'Datos faltantes (%)')
+
+rm(df_covid_CABA_PBA)
+
+```
+
+Nos quedamos con las variables **edad**, **jurisdiccion**, **departamento**, **fecha** y **clasificacion**. Las variables **jurisdiccion** y **departamento** indican el nombre de la jurisdicción y del departamento de residencia de la persona registrada. La **fecha** es la correspondiente al momento en el cual se abrió el registro del caso. La **clasificacion** indica el estado del caso registrado (Descartado, Confirmado, Sospechoso o Probable).
+
+La base de datos sólo cuenta con valores faltantes para la variable **edad**. Los datos faltantes representan un porcentaje muy bajo del total de los registros en la base de datos (poco más del 0.02%). Por el momento, dejamos los registros con datos faltantes.
+
+```{r summary, results='markup'}
+summary(df_covid_CABA_PBA_2021)
+
+```
+
+Explorando la base de datos podemos ver que para el año 2021 contamos con registros a partir del 08 de Abril. Además, observamos que la variable edad tiene registros erróneos, ya que el valor máximo que adopta esta variable es 2019.00. Vamos a tener en cuenta esto más adelante, cuando incorporemos la edad al análisis.
+
+### Curva epidémica de COVID-19
+
+En la primera sección de este trabajo vamos a estudiar la evolución temporal del COVID-19 en residentes de CABA y PBA durante el año 2021.
+
+En primer lugar, vamos a ver la cantidad de casos que se fueron acumulando a lo largo del tiempo durante el periodo analizado, utilizando un gráfico de barras apiladas para las dos jurisdicciones. De esta manera, vamos a poder ver qué ocurrió en la región, al mismo tiempo que comparamos la proporción de casos entre CABA y PBA.
+
+> Agrupamos los datos por semana epidemiológica (una semana que comienza el domingo y termina el sábado siguiente). Es decir, graficamos la suma de los casos de una semana entera.
+
+```{r casos acumulados en CABA y PBA, fig.cap='Casos de COVID-19 confirmados acumulados en la Ciudad Autónoma de Buenos Aires y en la Provincia de Buenos Aires durante parte del 2021. Los datos se encuentran agrupados por semana epidemiológica.'}
+df_casos_confirmados <- df_covid_CABA_PBA_2021 %>%
+  filter(clasificacion == 'Confirmado') %>%
+  mutate(jurisdiccion = factor(jurisdiccion, levels = c('CABA', 'Buenos Aires')))
+
+casos_confirmados <- incidence(x = df_casos_confirmados,
+                               date_index = fecha,
+                               interval = "Sunday week",
+                               firstdate = as.Date("2021-01-01"),
+                               groups = jurisdiccion)
+
+casos_confirmados %>%
+  cumulate() %>%
+  plot(fill = jurisdiccion,
+       n_breaks = 10) +
+  scale_fill_manual(values = c("#999999", "#56B4E9"), name = 'Jurisdicción') +
+  labs(x = "Fecha",
+       y = "Casos confirmados acumulados",
+       title = "Casos de COVID-19 confirmados acumulados en CABA y PBA",
+       subtitle = "Datos del Ministerio de Salud de la Nación") +
+  theme(panel.background = element_blank(),
+        panel.grid.major = element_line(colour = 'lightgrey', size = 0.2),
+        panel.grid.minor = element_line(colour = 'lightgrey', size = 0.1),
+        strip.background = element_blank(),
+        strip.text = element_text(size = 12),
+        axis.ticks = element_blank(),
+        axis.title = element_text(size = 14),
+        axis.text.x = element_text(angle = 45, vjust = 1, hjust=1),
+        axis.text = element_text(size = 10),
+        legend.key = element_rect(fill = "white"),
+        plot.title = element_text(size = 14),
+        plot.subtitle = element_text(size = 12),
+        legend.title = element_text(size = 12),
+        legend.text = element_text(size = 10))
+
+rm(casos_confirmados)
+
+```
+
+En este gráfico vemos claramente la subida de casos inicial, cómo la pendiente va disminuyendo hasta casi aplanarse para luego aumentar nuevamente a fin de año, en ambas regiones en su conjunto. Además, vemos que la cantidad de casos confirmados es muy superior en PBA que en CABA.
+
+Ahora bien, para comparar la dinámica de la curva de casos confirmados entre jurisdicciones, vamos a graficar la cantidad de casos confirmados por día para CABA y PBA, esta vez en dos paneles separados. Además, para suavizar la curva, vamos a mostrar el promedio móvil semanal de casos.
+
+```{r dinamica de casos de covid-19 en CABA y PBA, fig.cap='Casos de COVID-19 confirmados por día en la Ciudad Autónoma de Buenos Aires y en la Provincia de Buenos Aires durante parte del 2021. En negro se muestra el promedio móvil semanal de casos.'}
+casos_confirmados <- incidence(x = df_casos_confirmados,
+                               date_index = fecha,
+                               interval = "day",
+                               firstdate = as.Date("2021-01-01"),
+                               groups = jurisdiccion) %>% 
+  i2extras::add_rolling_average(before = 6)
+
+plot(casos_confirmados,
+     fill = jurisdiccion) +
+  facet_grid(jurisdiccion ~ ., scales = "free") +
+  scale_fill_manual(values = c("#999999", "#56B4E9"), name = 'Jurisdicción') +
+  scale_x_date(date_breaks = "1 month", limits = as.Date(c('2021-04-01','2022-01-01'))) +
+  labs(x = "Fecha",
+       y = "Casos confirmados",
+       title = "Casos de COVID-19 confirmados en CABA y PBA y promedio móvil semanal",
+       subtitle = "Datos del Ministerio de Salud de la Nación") +
+  theme(panel.background = element_blank(),
+        panel.grid.major = element_line(colour = 'lightgrey', size = 0.2),
+        panel.grid.minor = element_line(colour = 'lightgrey', size = 0.1),
+        strip.background = element_blank(),
+        strip.text = element_text(size = 12),
+        axis.ticks = element_blank(),
+        axis.title = element_text(size = 14),
+        axis.text.x = element_text(angle = 45, vjust = 1, hjust=1),
+        axis.text = element_text(size = 10),
+        plot.title = element_text(size = 14),
+        plot.subtitle = element_text(size = 12)) +
+  guides(fill = 'none')
+
+rm(casos_confirmados)
+
+```
+
+> Con el fin de visualizar mejor la dinámica de las curvas epidémicas, utilizamos una escala diferente para CABA y PBA.
+
+En este gráfico podemos ver que la forma de la curva epidémica es muy similar en ambas regiones. Es decir, el aumento de casos, los picos de COVID-19 y la bajada de las curvas ocurren más o menos al mismo tiempo en las dos jurisdicciones.
+
+El gráfico de barras apiladas nos permitió establecer que la Provincia de Buenos Aires registró más casos de COVID-19 que CABA durante el periodo analizado. La curva de casos de COVID-19 diarios indica lo mismo. Sin embargo, ninguno de los dos gráficos nos permite comparar adecuadamente cuánto mayor es el número de casos de PBA respecto de CABA. Para ello vamos a ver la **incidencia** (el número de casos nuevos de un determinado evento en una población y tiempo determinados) para CABA y PBA en un mismo panel, con las barras unas al lado de las otras.
+
+```{r magnitud de casos confirmados en CABA y PBA, fig.cap='Casos de COVID-19 confirmados en la Ciudad Autónoma de Buenos Aires y en la Provincia de Buenos Aires durante parte del 2021. Los datos se encuentran agrupados por semana epidemiológica.'}
+casos_confirmados <- incidence(x = df_casos_confirmados,
+                               date_index = fecha,
+                               interval = "Sunday week",
+                               firstdate = as.Date("2021-01-01"),
+                               groups = jurisdiccion)
+
+plot(casos_confirmados,
+     fill = jurisdiccion,
+     stack = FALSE,
+     n_breaks = 10) +
+  scale_fill_manual(values = c("#999999", "#56B4E9"), name = 'Jurisdicción') +
+  labs(x = "Fecha",
+       y = "Casos confirmados",
+       title = "Casos de COVID-19 confirmados en CABA y PBA",
+       subtitle = "Datos del Ministerio de Salud de la Nación") +
+  theme(panel.background = element_blank(),
+        panel.grid.major = element_line(colour = 'lightgrey', size = 0.2),
+        panel.grid.minor = element_line(colour = 'lightgrey', size = 0.1),
+        strip.background = element_blank(),
+        strip.text = element_text(size = 12),
+        axis.ticks = element_blank(),
+        axis.title = element_text(size = 14),
+        axis.text.x = element_text(angle = 45, vjust = 1, hjust=1),
+        axis.text = element_text(size = 10),
+        legend.key = element_rect(fill = "white"),
+        plot.title = element_text(size = 14),
+        plot.subtitle = element_text(size = 12),
+        legend.title = element_text(size = 12),
+        legend.text = element_text(size = 10))
+
+rm(casos_confirmados)
+
+```
+
+En este gráfico vemos que la cantidad de casos confirmados de COVID-19 es mucho mayor en la Provincia de Buenos Aires que en la Ciudad de Buenos Aires, cuatro veces mayor en PBA aproximadamente.
+
+Ahora bien, para comparar la cantidad de casos en dos regiones con poblaciones tan distintas en magnitud como CABA y PBA, es necesario normalizar los datos por la cantidad de habitantes. Es decir, es necesario ver la **tasa de incidencia** (el número de casos nuevos de un determinado evento en una población y tiempo determinados, dividido por la población en riesgo a mitad del período, por un factor de ampliación).
+
+Para ello, vamos a cargar las [proyecciones provinciales de población por sexo y grupo de edad 2010-2040](https://www.indec.gob.ar/ftp/cuadros/publicaciones/proyecciones_prov_2010_2040.pdf) para el año 2021 calculadas por el INDEC a partir de datos del Censo Nacional de Población, Hogares y Viviendas 2010. En particular, vamos a usar los datos correspondientes a la población total de CABA y PBA.
+
+```{r casos en CABA y PBA normalizados, fig.cap='Casos de COVID-19 confirmados cada 100.000 habitantes en la Ciudad Autónoma de Buenos Aires y en la Provincia de Buenos Aires durante parte del 2021. Los datos se encuentran agrupados por semana epidemiológica.'}
+pobl_CABA_PBA <- read.csv2(file = "data/poblacion_CABA_PBA_total.csv", sep = ',', dec = '.')
+
+df_casos_confirmados_agrupados <- df_casos_confirmados %>%
+  group_by(jurisdiccion, fecha) %>%
+  summarise(confirmados = n()) %>%
+  ungroup()
+
+df_casos_confirmados_agrupados <- left_join(df_casos_confirmados_agrupados,
+                                            pobl_CABA_PBA,
+                                            by = 'jurisdiccion') %>%
+  mutate(casos_pobl = confirmados / poblacion * 100000,
+         jurisdiccion = factor(jurisdiccion, levels = c('CABA', 'Buenos Aires')))
+
+casos_confirmados <- incidence(x = df_casos_confirmados_agrupados,
+                               count = casos_pobl,
+                               date_index = fecha,
+                               interval = "Sunday week",
+                               firstdate = as.Date("2021-01-01"),
+                               groups = jurisdiccion)
+
+plot(casos_confirmados,
+     fill = jurisdiccion,
+     stack = FALSE,
+     n_breaks = 10) +
+  scale_fill_manual(values = c("#999999", "#56B4E9"), name = 'Jurisdicción') +
+  labs(x = "Fecha",
+       y = "Tasa de incidencia\n(casos confirmados cada 100.000 habitantes)",
+       title = "Casos de COVID-19 confirmados cada 100.000 habitantes en CABA y PBA",
+       subtitle = "Datos del Ministerio de Salud de la Nación") +
+  theme(panel.background = element_blank(),
+        panel.grid.major = element_line(colour = 'lightgrey', size = 0.2),
+        panel.grid.minor = element_line(colour = 'lightgrey', size = 0.1),
+        strip.background = element_blank(),
+        strip.text = element_text(size = 12),
+        axis.ticks = element_blank(),
+        axis.title = element_text(size = 14),
+        axis.text.x = element_text(angle = 45, vjust = 1, hjust=1),
+        axis.text = element_text(size = 10),
+        legend.key = element_rect(fill = "white"),
+        plot.title = element_text(size = 14),
+        plot.subtitle = element_text(size = 12),
+        legend.title = element_text(size = 12),
+        legend.text = element_text(size = 10))
+
+rm(df_casos_confirmados, casos_confirmados)
+
+```
+
+En este gráfico podemos ver que la Ciudad de Buenos Aires tuvo durante todo el período de tiempo analizado una mayor tasa de incidencia en relación a la Provincia de Buenos Aires. Esta diferencia se hace incluso más evidente a fin del año 2021 (semanas epidemiológicas mayores a 45).
+
+¿A qué puede deberse este fenómeno?
+
+La tasa de incidencia se ve afectada por la **positividad** (los casos confirmados divididos por la suma del total de los casos testeados por 100) y la **tasa de notificación** (el número de casos testeados de un determinado evento en una población y tiempo determinados, dividido por la población en riesgo a mitad de período, por un factor de ampliación), entre otros factores. A continuación vamos a estudiar en detalle ambos indicadores.
+
+### Positividad
+
+Lo primero que nos preguntamos entonces es si la mayor tasa de incidencia de CABA responde a una mayor positividad en esta jurisdicción respecto de la Provincia de Buenos Aires.
+
+```{r positividad para CABA y PBA, fig.cap='Positividad en el testeo de COVID-19 en la Ciudad Autónoma de Buenos Aires y en la Provincia de Buenos Aires durante parte del 2021. Se muestra el promedio móvil semanal.'}
+df_casos_agrupados <- df_covid_CABA_PBA_2021 %>%
+  group_by(jurisdiccion, fecha) %>%
+  summarise(datos = n()) %>%
+  ungroup()
+
+positividad <- left_join(df_casos_confirmados_agrupados,
+                         df_casos_agrupados,
+                         by = c("jurisdiccion", "fecha")) %>%
+  mutate(positividad = round(confirmados / datos * 100, 2))
+
+positividad <- transformBy(~jurisdiccion, data = positividad, positividad_prom_7 = rollmeanr(positividad, 7, fill = 0))
+
+ggplot(subset(positividad, positividad_prom_7 > 0), aes(y = positividad_prom_7, x = fecha, color = factor(jurisdiccion, levels = c('CABA', 'Buenos Aires')))) +
+  geom_line() +
+  geom_point() +
+  scale_color_manual(values = c("#999999", "#56B4E9"), name = 'Jurisdicción') +
+  scale_x_date(date_breaks = "1 month", limits = as.Date(c('2021-04-01','2022-01-01'))) +
+  coord_cartesian(ylim = c(0,50)) +
+  scale_y_continuous(breaks = seq(0, 100, by = 10)) +
+  labs(x = "Fecha",
+       y = "Positividad\n(% casos confirmados / testeos)",
+       title = "Positividad en el testeo de COVID-19 en CABA y PBA",
+       subtitle = "Datos del Ministerio de Salud de la Nación") +
+  theme(panel.background = element_blank(),
+        panel.grid.major = element_line(colour = 'lightgrey', size = 0.2),
+        panel.grid.minor = element_line(colour = 'lightgrey', size = 0.1),
+        strip.background = element_blank(),
+        strip.text = element_text(size = 12),
+        axis.ticks = element_blank(),
+        axis.title = element_text(size = 14),
+        axis.text.x = element_text(angle = 45, vjust = 1, hjust=1),
+        axis.text = element_text(size = 10),
+        legend.key = element_rect(fill = "white"),
+        plot.title = element_text(size = 14),
+        plot.subtitle = element_text(size = 12),
+        legend.title = element_text(size = 12),
+        legend.text = element_text(size = 10))
+
+rm(df_casos_confirmados_agrupados, positividad)
+
+```
+
+En este gráfico vemos que ocurre lo opuesto a lo esperado. La positividad es mayor en la Provincia de Buenos Aires que en la Ciudad de Buenos Aires. Es decir, la mayor tasa de incidencia que presenta la Ciudad de Buenos Aires no se explicaría por una mayor positividad en el testeo.
+
+### Tasa de notificación
+
+¿Qué ocurre entonces con los testeos?
+
+```{r tasa de notificacion para CABA y PBA, fig.cap='Tasa de notificación de COVID-19 cada 100.000 habitantes en la Ciudad Autónoma de Buenos Aires y en la Provincia de Buenos Aires durante parte del 2021. Los datos se encuentran agrupados por semana epidemiológica.'}
+df_casos_agrupados <- left_join(df_casos_agrupados,
+                                pobl_CABA_PBA,
+                                by = "jurisdiccion") %>%
+  mutate(notificacion = round(datos / poblacion * 100000, 2),
+         jurisdiccion = factor(jurisdiccion, levels = c('CABA', 'Buenos Aires')))
+
+notificacion <- incidence(x = df_casos_agrupados,
+                          count = notificacion,
+                          date_index = fecha,
+                          interval = "Sunday week",
+                          firstdate = as.Date("2021-01-01"),
+                          groups = jurisdiccion)
+
+plot(notificacion,
+     fill = jurisdiccion,
+     stack = FALSE,
+     n_breaks = 10) +
+  scale_fill_manual(values = c("#999999", "#56B4E9"), name = 'Jurisdicción') +
+  labs(x = "Fecha",
+       y = "Tasa de notificación\n(cada 100.000 habitantes)",
+       title = "Tasa de notificación de COVID-19 en CABA y PBA",
+       subtitle = "Datos del Ministerio de Salud de la Nación") +
+  theme(panel.background = element_blank(),
+        panel.grid.major = element_line(colour = 'lightgrey', size = 0.2),
+        panel.grid.minor = element_line(colour = 'lightgrey', size = 0.1),
+        strip.background = element_blank(),
+        strip.text = element_text(size = 12),
+        axis.ticks = element_blank(),
+        axis.title = element_text(size = 14),
+        axis.text.x = element_text(angle = 45, vjust = 1, hjust=1),
+        axis.text = element_text(size = 10),
+        legend.key = element_rect(fill = "white"),
+        plot.title = element_text(size = 14),
+        plot.subtitle = element_text(size = 12),
+        legend.title = element_text(size = 12),
+        legend.text = element_text(size = 10))
+
+rm(df_casos_agrupados, notificacion, pobl_CABA_PBA)
+
+```
+
+En este gráfico podemos ver que la Ciudad Autónoma de Buenos Aires posee una tasa de notificación mucho mayor (más del doble) que la Provincia de Buenos Aires a lo largo de todo el periodo analizado. Estos datos avalan la hipótesis de que la tasa de notificación sería la responsable de la mayor tasa de incidencia en CABA.
+
+Veamos a continuación la distribución territorial de la tasa de notificación en CABA para determinar si su valor elevado resulta de una comuna aislada con una tasa de notificación muy alta o, por el contrario, deriva de una distribución homogénea de altas tasas de notificación en todas las comunas.
+
+### Distribución territorial de la tasa de notificación
+
+Para estudiar la distribución territorial de la tasa de notificación en CABA y compararla con la de la Provincia de Buenos Aires, vamos a cargar la [base de datos geográfica que contiene los departamentos de las distintas jurisdicciones de la República Argentina](https://www.indec.gob.ar/indec/web/Institucional-Indec-Codgeo). La base de datos fue elaborada en base a datos del INDEC, a partir del Censo Nacional de Población, Hogares y Viviendas 2010 y geografía y códigos geográficos del Sistema Estadístico Nacional.
+
+Vamos a quedarnos sólo con los datos correspondientes a la Ciudad Autónoma de Buenos Aires y la Provincia de Buenos Aires. Las variables que nos interesan son la jurisdicción (**provincia**), el departamento (**departamen**), la población (**personas**) y los límites geográficos (**geometry**) de cada departamento. Vamos a modificar los nombres de algunos de los registros para hacer que esta base de datos sea compatible con la de testeo de COVID-19. Por último, vamos a limpiar los registros de la base de datos de casos registrados de COVID-19 que posean mal ingresado el departamento de residencia de la persona testeada.
+
+```{r tasa de notificacion por departamento en CABA y PBA, fig.cap=c('Mapa de la Ciudad Autónoma de Buenos Aires con sus respectivas comunas coloreadas en base a la tasa de notificación de COVID-19 cada 100.000 habtantes.', 'Mapa de la Provincia de Buenos Aires con sus respectivos municipios coloreados en base a la tasa de notificación de COVID-19  cada 100.000 habtantes.')}
+departamentos_CABA_PBA <- st_read('data/pxdptodatosok.shp')
+
+departamentos_CABA_PBA <- departamentos_CABA_PBA %>%
+  filter(provincia %in% c('Ciudad Autónoma de Buenos Aires', 'Buenos Aires')) %>%
+  select('departamen', 'provincia', 'personas', 'geometry') %>%
+  rename(departamento = departamen,
+         jurisdiccion = provincia,
+         poblacion = personas) %>%
+  mutate(poblacion = as.integer(poblacion),
+         jurisdiccion = case_when(jurisdiccion == 'Ciudad Autónoma de Buenos Aires' ~ 'CABA',
+                                  TRUE ~ jurisdiccion),
+         departamento = str_to_upper(departamento),
+         departamento = case_when(departamento == 'COMUNA 1' ~ 'COMUNA 01',
+                                  departamento == 'COMUNA 2' ~ 'COMUNA 02',
+                                  departamento == 'COMUNA 3' ~ 'COMUNA 03',
+                                  departamento == 'COMUNA 4' ~ 'COMUNA 04',
+                                  departamento == 'COMUNA 5' ~ 'COMUNA 05',
+                                  departamento == 'COMUNA 6' ~ 'COMUNA 06',
+                                  departamento == 'COMUNA 7' ~ 'COMUNA 07',
+                                  departamento == 'COMUNA 8' ~ 'COMUNA 08',
+                                  departamento == 'COMUNA 9' ~ 'COMUNA 09',
+                                  departamento == 'CORONEL DE MARINA LEONARDO ROSALES' ~ 'CORONEL DE MARINA L. ROSALES',
+                                  TRUE ~ departamento))
+
+casos_testeados <- df_covid_CABA_PBA_2021 %>%
+  group_by(jurisdiccion, departamento) %>%
+  summarise(datos = n()) %>%
+  ungroup() %>%
+  filter(!(jurisdiccion == 'CABA' & departamento == 'SIN ESPECIFICAR'),
+         !(jurisdiccion == 'Buenos Aires' & departamento == 'SIN ESPECIFICAR'),
+         !(jurisdiccion == 'Buenos Aires' & departamento %in% c('COMUNA 01', 'COMUNA 03', 'COMUNA 12')),
+         !departamento == 'Lezama') %>%
+  mutate(departamento = str_to_upper(departamento))
+
+casos_testeados_departamento <- merge(departamentos_CABA_PBA,
+                                      casos_testeados,
+                                      by = c('jurisdiccion', 'departamento'))
+
+casos_testeados_departamento <- casos_testeados_departamento %>%
+  mutate(notificacion = round(datos / poblacion * 100000, 2))
+
+ggplot(data = subset(casos_testeados_departamento, jurisdiccion == 'CABA'), aes(fill = notificacion)) +
+  geom_sf() +
+  theme_void() +
+  scale_fill_viridis_c(limits = c(8800, 64000), name = 'Tasa de notificación') +
+  labs(title = "Tasa de notificación de COVID-19 por comuna en CABA",
+       subtitle = "Datos del Ministerio de Salud de la Nación")
+
+ggplot(data = subset(casos_testeados_departamento, jurisdiccion == 'Buenos Aires'), aes(fill = notificacion)) +
+  geom_sf() +
+  theme_void() +
+  scale_fill_viridis_c(limits = c(8800, 64000), name = 'Tasa de notificación') +
+  labs(title = "Tasa de notificación de COVID-19 por municipio en PBA",
+       subtitle = "Datos del Ministerio de Salud de la Nación")
+
+rm(casos_testeados, departamentos_CABA_PBA)
+
+```
+
+Los mapas muestran que todas las comunas de la Ciudad Autónoma de Buenos Aires poseen una alta tasa de notificación, especialmente las del norte de la ciudad. Por el contrario, la gran mayoría de los municipios de la Provincia de Buenos Aires poseen tasas de notificación de medias a bajas.
+
+Veamos esto en un gráfico de barras.
+
+```{r tasa de notificacion por departamento en CABA y PBA 2, fig.cap='Tasa de notificación de COVID-19 cada 100.000 habitantes para las comunas de la Ciudad Autónoma de Buenos Aires y los municipios de la Provincia de Buenos Aires ordenados de menor a mayor. En celeste se muestran las comunas de CABA. En naranja los 24 partidos del Gran Buenos Aires.'}
+GBA <- str_to_upper(c('Almirante Brown', 'Avellaneda', 'Berazategui', 'Esteban Echeverría', 'Ezeiza', 'Florencio Varela', 'General San Martín', 'Hurlingham', 'Ituzaingó', 'José C. Paz', 'La Matanza', 'Lanús', 'Lomas de Zamora', 'Malvinas Argentinas', 'Merlo', 'Moreno', 'Morón', 'Quilmes', 'San Fernando', 'San Isidro', 'San Miguel', 'Tigre', 'Tres de Febrero', 'Vicente López'))
+
+ggplot(casos_testeados_departamento, aes(x = reorder(departamento, notificacion), y = notificacion)) +
+  geom_col(fill = "#999999", alpha = 0.25) +
+  geom_col(data = subset(casos_testeados_departamento, jurisdiccion == 'CABA'), aes(x = reorder(departamento, notificacion), y = notificacion), fill = "#56B4E9") +
+  geom_col(data = subset(casos_testeados_departamento, departamento %in% c(GBA)), aes(x = reorder(departamento, notificacion), y = notificacion), fill = "#E69F00") +
+  scale_y_continuous(breaks = seq(0, 80000, by = 10000))+
+  coord_cartesian(ylim = c(0, 70000))+
+  coord_flip() +
+  labs(x = 'Comuna (CABA) / Municipio (PBA)',
+       y = 'Tasa de notificación\n(cada 100.000 habitantes)',
+       title = 'Tasa de notificación por comuna (CABA) y municipio (PBA)',
+       subtitle = 'Datos del Ministerio de Salud de la Nación')+
+  theme(panel.background = element_blank(),
+        panel.grid.major = element_line(colour = 'lightgrey', size = 0.2),
+        panel.grid.minor = element_line(colour = 'lightgrey', size = 0.1),
+        strip.background = element_blank(),
+        strip.text = element_text(size = 12),
+        axis.ticks = element_blank(),
+        axis.title = element_text(size = 14),
+        axis.text = element_text(size = 10),
+        axis.text.y = element_blank(),
+        legend.key = element_rect(fill = "white"),
+        plot.title = element_text(size = 14),
+        plot.subtitle = element_text(size = 12),
+        legend.title = element_text(size = 12),
+        legend.text = element_text(size = 10))
+
+rm(casos_testeados_departamento, GBA)
+
+```
+
+Acá podemos ver que las comunas de CABA se agrupan en la región superior del gráfico, lo cual indica que poseen altas tasas de notificación, mientras que los 24 partidos del Gran Buenos Aires se encuentran más o menos dispersos con tasas de notificación altas, medias y bajas.
+
+Estos resultados indican que la mayor tasa de notificación de CABA respecto de PBA es algo general y no producto de algunas regiones aisladas con valores extremos o un error en la carga de datos.
