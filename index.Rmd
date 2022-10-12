@@ -3,18 +3,6 @@ title: "Covid-19 en CABA y PBA durante el año 2021"
 subtitle: "Introducción a la Ciencia de Datos en Salud - Introducción al análisis epidemiológico"
 author: "Paula Dunayevich"
 date: "31 de agosto de 2022"
-output:
- html_document:
-    fig_height: 6
-    fig_width: 8
-    toc: true
-    toc_depth: 4
-    toc_float:
-      toc_collapsed: true
-    number_sections: true
-    theme: paper
-editor_options:
-  chunk_output_type: console
 ---
 
 ```{r setup, include=FALSE}
