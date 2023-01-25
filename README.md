@@ -4,7 +4,7 @@ En este proyecto se estudia la evolución del COVID-19 en la Ciudad Autónoma de
 
 ## Link
 
-Para visitar la página del repositorio, haga clic en [este enlace](https://pauladuna.github.io/covid_analisis_epidemiologico/).
+Para visitar la página del repositorio, haga clic en [este enlace](https://pauladuna.github.io/covid-epi-analysis/).
 
 ## Contexto
 
